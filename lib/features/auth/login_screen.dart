@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Icon(Icons.language, size: 100, color: Colors.white),
                           SizedBox(height: 24),
                           Text(
-                            'Centre d\'Anglais',
+                            'VLC ENGLISH CENTER',
                             style: TextStyle(
                               fontSize: 48,
                               fontWeight: FontWeight.bold,
