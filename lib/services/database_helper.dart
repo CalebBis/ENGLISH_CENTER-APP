@@ -46,6 +46,29 @@ class DatabaseHelper {
         }
       }
     }
+    
+    if (oldVersion < 3) {
+      // v2 → v3 : add new columns to students
+      for (final sql in migrationV2toV3) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column already exists – safe to ignore
+        }
+      }
+    }
+    
+    if (oldVersion < 4) {
+      // v3 → v4 : add unique index to enrollments
+      for (final sql in migrationV3toV4) {
+        try {
+          await db.execute(sql);
+        } catch (e) {
+          // Index might already exist or data violation
+          print('Migration V3 to V4 error: $e');
+        }
+      }
+    }
   }
 }
 

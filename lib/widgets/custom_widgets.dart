@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 class CustomButton extends StatelessWidget {
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color? backgroundColor;
   final bool isLoading;
 
   const CustomButton({
     Key? key,
     required this.label,
-    required this.onPressed,
+    this.onPressed,
     this.backgroundColor,
     this.isLoading = false,
   }) : super(key: key);
@@ -55,6 +55,9 @@ class CustomTextField extends StatefulWidget {
   final IconData? prefixIcon;
   final bool obscureText;
   final TextEditingController? controller;
+  final String? Function(String?)? validator;
+  final void Function(String)? onChanged;
+  final TextInputType? keyboardType;
 
   const CustomTextField({
     Key? key,
@@ -63,6 +66,9 @@ class CustomTextField extends StatefulWidget {
     this.prefixIcon,
     this.obscureText = false,
     this.controller,
+    this.validator,
+    this.onChanged,
+    this.keyboardType,
   }) : super(key: key);
 
   @override
@@ -83,6 +89,9 @@ class _CustomTextFieldState extends State<CustomTextField> {
     return TextFormField(
       controller: widget.controller,
       obscureText: _obscureText,
+      validator: widget.validator,
+      onChanged: widget.onChanged,
+      keyboardType: widget.keyboardType,
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,

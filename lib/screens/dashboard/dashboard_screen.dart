@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../teachers/teacher_list_screen.dart';
+import '../classes/class_list_screen.dart';
+import '../students/student_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -116,8 +118,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           _buildDrawerItem(Icons.dashboard, 'Tableau de Bord', () => Navigator.pop(context)),
-          _buildDrawerItem(Icons.people, 'Étudiants', () => Navigator.pop(context)),
-          _buildDrawerItem(Icons.school, 'Classes', () => Navigator.pop(context)),
+          _buildDrawerItem(Icons.people, 'Étudiants', () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StudentListScreen()),
+            );
+          }),
+          _buildDrawerItem(Icons.school, 'Classes', () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ClassListScreen()),
+            );
+          }),
           _buildDrawerItem(Icons.person_pin, 'Enseignants', () {
             Navigator.pop(context);
             Navigator.push(

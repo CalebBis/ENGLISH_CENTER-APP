@@ -1,7 +1,9 @@
-// Database schema - version 2
-// Added columns to teachers: postName, dateOfBirth, placeOfBirth, address
+// Database schema - version 3
+// Added columns to teachers: postName, dateOfBirth, placeOfBirth, address (v2)
+// Added columns to students: postName, placeOfBirth, guardianFirstName, guardianLastName, guardianPhone (v3)
+// Added unique index on enrollments(studentId) to enforce single class per student (v4)
 
-const int kDatabaseVersion = 2;
+const int kDatabaseVersion = 4;
 
 const String sqlCreateUsers = '''
   CREATE TABLE IF NOT EXISTS users (
@@ -182,5 +184,19 @@ const List<String> migrationV1toV2 = [
   "ALTER TABLE teachers ADD COLUMN placeOfBirth TEXT",
   "ALTER TABLE teachers ADD COLUMN address TEXT",
   "ALTER TABLE teachers ADD COLUMN isActive INTEGER DEFAULT 1",
+];
+
+/// SQL statements for migrating from version 2 to version 3.
+const List<String> migrationV2toV3 = [
+  "ALTER TABLE students ADD COLUMN postName TEXT DEFAULT ''",
+  "ALTER TABLE students ADD COLUMN placeOfBirth TEXT",
+  "ALTER TABLE students ADD COLUMN guardianFirstName TEXT",
+  "ALTER TABLE students ADD COLUMN guardianLastName TEXT",
+  "ALTER TABLE students ADD COLUMN guardianPhone TEXT",
+];
+
+/// SQL statements for migrating from version 3 to version 4.
+const List<String> migrationV3toV4 = [
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_enrollment_student ON enrollments(studentId)",
 ];
 
