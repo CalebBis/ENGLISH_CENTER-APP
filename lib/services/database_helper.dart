@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'database_schema.dart';
@@ -65,7 +66,27 @@ class DatabaseHelper {
           await db.execute(sql);
         } catch (e) {
           // Index might already exist or data violation
-          print('Migration V3 to V4 error: $e');
+          debugPrint('Migration V3 to V4 error: $e');
+        }
+      }
+    }
+    if (oldVersion < 5) {
+      // v4 → v5 : add periodMonth to payments
+      for (final sql in migrationV4toV5) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column already exists – safe to ignore
+        }
+      }
+    }
+    if (oldVersion < 6) {
+      // v5 → v6 : add feeType to payments
+      for (final sql in migrationV5toV6) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column already exists – safe to ignore
         }
       }
     }

@@ -12,4 +12,6 @@ class AppConstants {
     'IELTS Preparation',
     'TOEFL Preparation',
   ];
+  static const double monthlyFee = 20.0;
+  static const String printerMacKey = 'selected_printer_mac';
 }

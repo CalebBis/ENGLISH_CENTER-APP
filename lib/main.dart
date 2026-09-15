@@ -8,9 +8,13 @@ import 'providers/dashboard_provider.dart';
 import 'providers/teacher_provider.dart';
 import 'providers/class_provider.dart';
 import 'providers/student_provider.dart';
+import 'providers/payment_provider.dart';
+import 'services/fee_settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await FeeSettingsService.instance.init();
   
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
@@ -24,6 +28,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => TeacherProvider()),
         ChangeNotifierProvider(create: (_) => ClassProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
+        ChangeNotifierProvider(create: (_) => PaymentProvider()),
       ],
       child: const MyApp(),
     ),

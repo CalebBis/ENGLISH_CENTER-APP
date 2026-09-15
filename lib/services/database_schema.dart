@@ -2,8 +2,9 @@
 // Added columns to teachers: postName, dateOfBirth, placeOfBirth, address (v2)
 // Added columns to students: postName, placeOfBirth, guardianFirstName, guardianLastName, guardianPhone (v3)
 // Added unique index on enrollments(studentId) to enforce single class per student (v4)
+// Added periodMonth column to payments table (v5)// Added feeType column to payments table (v6)
 
-const int kDatabaseVersion = 4;
+const int kDatabaseVersion = 6;
 
 const String sqlCreateUsers = '''
   CREATE TABLE IF NOT EXISTS users (
@@ -96,6 +97,8 @@ const String sqlCreatePayments = '''
   CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
     studentId TEXT NOT NULL,
+    periodMonth TEXT NOT NULL DEFAULT '',
+    feeType TEXT NOT NULL DEFAULT 'monthly',
     amount REAL NOT NULL,
     status TEXT NOT NULL,
     paymentDate TEXT NOT NULL,
@@ -200,3 +203,12 @@ const List<String> migrationV3toV4 = [
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_enrollment_student ON enrollments(studentId)",
 ];
 
+/// SQL statements for migrating from version 4 to version 5.
+const List<String> migrationV4toV5 = [
+  "ALTER TABLE payments ADD COLUMN periodMonth TEXT NOT NULL DEFAULT ''",
+];
+
+/// SQL statements for migrating from version 5 to version 6.
+const List<String> migrationV5toV6 = [
+  "ALTER TABLE payments ADD COLUMN feeType TEXT NOT NULL DEFAULT 'monthly'",
+];

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../teachers/teacher_list_screen.dart';
 import '../classes/class_list_screen.dart';
+import '../payments/payment_list_screen.dart';
 import '../students/student_list_screen.dart';
+import '../settings/settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -120,18 +122,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildDrawerItem(Icons.dashboard, 'Tableau de Bord', () => Navigator.pop(context)),
           _buildDrawerItem(Icons.people, 'Étudiants', () {
             Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const StudentListScreen()),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentListScreen()));
           }),
-          _buildDrawerItem(Icons.school, 'Classes', () {
+          _buildDrawerItem(Icons.class_, 'Classes', () {
             Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ClassListScreen()),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ClassListScreen()));
           }),
+          _buildDrawerItem(Icons.payment, 'Paiements', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentListScreen()));
+          }),
+          _buildDrawerItem(Icons.check_circle, 'Présence', () => Navigator.pop(context)),
           _buildDrawerItem(Icons.person_pin, 'Enseignants', () {
             Navigator.pop(context);
             Navigator.push(
@@ -139,13 +140,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               MaterialPageRoute(builder: (_) => const TeacherListScreen()),
             );
           }),
-          _buildDrawerItem(Icons.payment, 'Paiements', () => Navigator.pop(context)),
-          _buildDrawerItem(Icons.check_circle, 'Présence', () => Navigator.pop(context)),
           _buildDrawerItem(Icons.assessment, 'Examens', () => Navigator.pop(context)),
           _buildDrawerItem(Icons.bar_chart, 'Rapports', () => Navigator.pop(context)),
           const Divider(),
-          _buildDrawerItem(Icons.settings, 'Paramètres', () => Navigator.pop(context)),
-          _buildDrawerItem(Icons.logout, 'Déconnexion', () => Navigator.pop(context)),
+          _buildDrawerItem(Icons.settings, 'Paramètres', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+          }),
         ],
       ),
     );
