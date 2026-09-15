@@ -82,71 +82,105 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Sélectionner un étudiant'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: availableStudents.length,
-              itemBuilder: (context, index) {
-                final student = availableStudents[index];
-                final currentClass = student.englishClass;
-                final subtitleText = currentClass != null 
-                    ? 'Classe actuelle : ${currentClass.name}'
-                    : 'Classe actuelle : Aucune';
-                
-                return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text(student.fullName),
-                  subtitle: Text(
-                    subtitleText,
-                    style: TextStyle(
-                      color: currentClass != null ? Colors.orange : Colors.green,
-                      fontWeight: currentClass != null ? FontWeight.w500 : FontWeight.normal,
-                    ),
-                  ),
-                  onTap: () async {
-                    if (currentClass != null) {
-                      final confirm = await showDialog<bool>(
-                        context: ctx,
-                        builder: (confirmCtx) => AlertDialog(
-                          title: const Text('Confirmer le transfert'),
-                          content: Text(
-                            'Cet étudiant est actuellement inscrit dans la classe ${currentClass.name}. '
-                            'Voulez-vous le transférer vers ${widget.englishClass.name} ?'
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(confirmCtx, false),
-                              child: const Text('Annuler'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(confirmCtx, true),
-                              style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                              child: const Text('Transférer'),
-                            ),
-                          ],
+        String query = '';
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final filteredStudents = availableStudents.where((s) {
+              return s.fullName.toLowerCase().contains(query.toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Sélectionner un étudiant'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un étudiant...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          query = val.trim();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filteredStudents.isEmpty
+                          ? const Center(child: Text('Aucun étudiant trouvé'))
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filteredStudents.length,
+                              itemBuilder: (context, index) {
+                                final student = filteredStudents[index];
+                                final currentClass = student.englishClass;
+                                final subtitleText = currentClass != null 
+                                    ? 'Classe actuelle : ${currentClass.name}'
+                                    : 'Classe actuelle : Aucune';
+                                
+                                return ListTile(
+                                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                                  title: Text(student.fullName),
+                                  subtitle: Text(
+                                    subtitleText,
+                                    style: TextStyle(
+                                      color: currentClass != null ? Colors.orange : Colors.green,
+                                      fontWeight: currentClass != null ? FontWeight.w500 : FontWeight.normal,
+                                    ),
+                                  ),
+                                  onTap: () async {
+                                    if (currentClass != null) {
+                                      final confirm = await showDialog<bool>(
+                                        context: ctx,
+                                        builder: (confirmCtx) => AlertDialog(
+                                          title: const Text('Confirmer le transfert'),
+                                          content: Text(
+                                            'Cet étudiant est actuellement inscrit dans la classe ${currentClass.name}. '
+                                            'Voulez-vous le transférer vers ${widget.englishClass.name} ?'
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(confirmCtx, false),
+                                              child: const Text('Annuler'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(confirmCtx, true),
+                                              style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                                              child: const Text('Transférer'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
 
-                      if (confirm != true) return;
-                    }
+                                      if (confirm != true) return;
+                                    }
 
-                    Navigator.pop(ctx);
-                    await _enrollStudent(student.id);
-                  },
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler'),
-            ),
-          ],
+                                    Navigator.pop(ctx);
+                                    await _enrollStudent(student.id);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

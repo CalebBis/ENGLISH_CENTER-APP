@@ -4,6 +4,7 @@ import '../../providers/payment_provider.dart';
 import '../../models/student.dart';
 import '../../services/printer_service.dart';
 import 'student_payment_detail_screen.dart';
+import 'report_preview_screen.dart';
 import '../../config/constants.dart';
 
 class PaymentListScreen extends StatefulWidget {
@@ -80,14 +81,7 @@ class _PaymentListScreenState extends State<PaymentListScreen> {
 
   // ─── Print Report ─────────────────────────────────────────────────────────
 
-  Future<void> _printReport(PaymentProvider provider) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Impression en cours...')),
-    );
-
-    final monthLabel = PaymentProvider.periodLabel(provider.currentPeriod);
-    
-    // Evaluate total unpaid amount based on monthly fees
+  void _printReport(PaymentProvider provider) {
     double totalUnpaid = 0;
     final monthlyRows = provider.payments.where((p) => p['feeType'] == 'monthly').toList();
     for (var row in monthlyRows) {
@@ -96,21 +90,17 @@ class _PaymentListScreenState extends State<PaymentListScreen> {
       }
     }
 
-    final result = await PrinterService.instance.printMonthlyReport(
-      monthLabel: monthLabel,
-      rows: monthlyRows,
-      totalCollected: provider.totalRevenue,
-      unpaidCount: provider.unpaidCount,
-      totalUnpaidAmount: totalUnpaid,
-      provider: provider,
-    );
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message),
-        backgroundColor: result.success ? Colors.green : Colors.red,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReportPreviewScreen(
+          monthLabel: PaymentProvider.periodLabel(provider.currentPeriod),
+          rows: monthlyRows,
+          provider: provider,
+          totalCollected: provider.totalRevenue,
+          unpaidCount: provider.unpaidCount,
+          totalUnpaidAmount: totalUnpaid,
+        ),
       ),
     );
   }

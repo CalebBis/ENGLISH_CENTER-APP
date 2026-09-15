@@ -35,6 +35,7 @@ dependencies:
 
   # PDF and Export
   pdf: ^3.10.0
+  printing: ^5.13.1
   excel: ^4.0.6
   file_saver: ^0.3.1
 
