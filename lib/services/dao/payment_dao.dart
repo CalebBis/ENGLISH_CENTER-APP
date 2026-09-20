@@ -210,4 +210,48 @@ class PaymentDao {
     final rows = await db.query(_table, where: 'id = ?', whereArgs: [paymentId]);
     return Payment.fromMap(rows.first);
   }
+
+  // -----------------------------------------------------------------------
+  // Get unpaid payments count for a given month.
+  // -----------------------------------------------------------------------
+  Future<int> getUnpaidCountForMonth(String periodMonth) async {
+    final db = await DatabaseHelper.instance.database;
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery(
+        "SELECT COUNT(*) FROM payments WHERE periodMonth = ? AND status = 'unpaid'",
+        [periodMonth]
+      )
+    );
+    return count ?? 0;
+  }
+
+  // -----------------------------------------------------------------------
+  // Get revenue grouped by month for the last X months.
+  // -----------------------------------------------------------------------
+  Future<List<MapEntry<String, double>>> getRevenueByMonth({int monthsCount = 6}) async {
+    final db = await DatabaseHelper.instance.database;
+    final List<MapEntry<String, double>> revenues = [];
+    final now = DateTime.now();
+    
+    for (int i = monthsCount - 1; i >= 0; i--) {
+      // Calculate the month and year
+      var d = DateTime(now.year, now.month - i, 1);
+      final periodStr = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+      
+      final result = await db.rawQuery('''
+        SELECT SUM(amount) as total
+        FROM payments
+        WHERE status = 'paid' AND strftime('%Y-%m', paymentDate) = ?
+      ''', [periodStr]);
+      
+      double total = 0.0;
+      if (result.isNotEmpty && result.first['total'] != null) {
+        total = (result.first['total'] as num).toDouble();
+      }
+      
+      revenues.add(MapEntry(periodStr, total));
+    }
+    
+    return revenues;
+  }
 }

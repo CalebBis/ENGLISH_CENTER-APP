@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../models/payment.dart';
 import '../services/dao/payment_dao.dart';
 import '../services/fee_settings_service.dart';
+import '../services/dao/class_dao.dart';
+import '../services/dao/enrollment_dao.dart';
+import '../models/english_class.dart';
 
 class PaymentProvider extends ChangeNotifier {
   final PaymentDao _dao = PaymentDao();
+  final ClassDao _classDao = ClassDao();
+  final EnrollmentDao _enrollmentDao = EnrollmentDao();
 
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _inscriptionPayments = [];
@@ -12,7 +17,9 @@ class PaymentProvider extends ChangeNotifier {
   String _currentPeriod = _currentMonthString();
   double _calendarMonthRevenue = 0.0;
   String _statusFilter = 'all'; // 'all', 'fully_paid', 'unpaid'
-  String _promotionFilter = 'all'; // 'all' or specific level
+  String _promotionFilter = 'all'; // 'all' or specific classId
+  List<EnglishClass> _availableClasses = [];
+  Map<String, String> _studentClassMap = {};
 
   List<Map<String, dynamic>> get payments => _payments;
   List<Map<String, dynamic>> get inscriptionPayments => _inscriptionPayments;
@@ -21,6 +28,8 @@ class PaymentProvider extends ChangeNotifier {
   double get calendarMonthRevenue => _calendarMonthRevenue;
   String get statusFilter => _statusFilter;
   String get promotionFilter => _promotionFilter;
+  List<EnglishClass> get availableClasses => _availableClasses;
+  Map<String, String> get studentClassMap => _studentClassMap;
 
   void setStatusFilter(String filter) {
     _statusFilter = filter;
@@ -90,6 +99,9 @@ class PaymentProvider extends ChangeNotifier {
       final year = int.parse(parts[0]);
       final month = int.parse(parts[1]);
       _calendarMonthRevenue = await _dao.getRevenueForCalendarMonth(year, month);
+      
+      _availableClasses = await _classDao.getAllClasses();
+      _studentClassMap = await _enrollmentDao.getActiveEnrollmentsMap();
     } catch (e) {
       debugPrint('PaymentProvider.loadPayments error: $e');
     } finally {

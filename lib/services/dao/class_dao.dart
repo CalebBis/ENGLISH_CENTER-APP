@@ -89,6 +89,46 @@ class ClassDao {
     return EnglishClass.fromMap(map, teacher: teacher);
   }
 
+  Future<List<EnglishClass>> getClassesByTeacherId(String teacherId) async {
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.rawQuery('''
+      SELECT c.*, 
+             t.id as t_id, t.firstName as t_firstName, t.lastName as t_lastName, 
+             t.postName as t_postName, t.email as t_email, t.phone as t_phone, 
+             t.specializations as t_specializations, t.isActive as t_isActive,
+             t.createdAt as t_createdAt, t.updatedAt as t_updatedAt,
+             (SELECT COUNT(*) FROM enrollments e WHERE e.classId = c.id) as realEnrollmentCount
+      FROM classes c
+      LEFT JOIN teachers t ON c.teacherId = t.id
+      WHERE c.teacherId = ? AND c.isActive = 1
+      ORDER BY c.name ASC
+    ''', [teacherId]);
+
+    return rows.map((row) {
+      Teacher? teacher;
+      if (row['t_id'] != null) {
+        teacher = Teacher(
+          id: row['t_id'] as String,
+          firstName: row['t_firstName'] as String,
+          lastName: row['t_lastName'] as String,
+          postName: (row['t_postName'] as String?) ?? '',
+          email: row['t_email'] as String,
+          phone: row['t_phone'] as String,
+          specializations: (row['t_specializations'] as String).isNotEmpty
+              ? (row['t_specializations'] as String).split(',')
+              : [],
+          isActive: (row['t_isActive'] as int? ?? 1) == 1,
+          createdAt: DateTime.parse(row['t_createdAt'] as String),
+          updatedAt: DateTime.parse(row['t_updatedAt'] as String),
+        );
+      }
+
+      final map = Map<String, dynamic>.from(row);
+      map['currentEnrollment'] = row['realEnrollmentCount'];
+      return EnglishClass.fromMap(map, teacher: teacher);
+    }).toList();
+  }
+
   Future<void> insertClass(EnglishClass englishClass) async {
     final db = await DatabaseHelper.instance.database;
     await db.insert(_table, englishClass.toMap(),

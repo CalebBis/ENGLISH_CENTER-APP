@@ -19,14 +19,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Printer
   String? _savedMac;
+  String? _savedPort;
   String? _savedName;
   bool _printerConnected = false;
   bool _loadingPrinter = false;
   List<BluetoothInfo> _pairedDevices = [];
+  List<String> _comPorts = [];
   bool _loadingDevices = false;
 
-  // True only on mobile
+  // Platforms
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _isWindows => !kIsWeb && Platform.isWindows;
 
   late TextEditingController _inscriptionController;
   late TextEditingController _monthlyController;
@@ -50,36 +53,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadPrinterStatus() async {
     final mac = await PrinterService.instance.getSavedMac();
+    final port = await PrinterService.instance.getSavedPort();
     final connected = await PrinterService.instance.isConnected();
     if (mounted) {
       setState(() {
         _savedMac = mac;
+        _savedPort = port;
         _printerConnected = connected;
       });
     }
   }
 
   Future<void> _searchDevices() async {
-    if (!_isMobile) {
+    if (!_isMobile && !_isWindows) {
       _showUnsupportedSnack();
       return;
     }
-    setState(() { _loadingDevices = true; _pairedDevices = []; });
-    final devices = await PrinterService.instance.getPairedDevices();
-    if (mounted) setState(() { _pairedDevices = devices; _loadingDevices = false; });
+    setState(() { _loadingDevices = true; _pairedDevices = []; _comPorts = []; });
+    
+    if (_isMobile) {
+      final devices = await PrinterService.instance.getPairedDevices();
+      if (mounted) setState(() { _pairedDevices = devices; _loadingDevices = false; });
+    } else if (_isWindows) {
+      final ports = PrinterService.instance.listAvailablePorts();
+      if (mounted) setState(() { _comPorts = ports; _loadingDevices = false; });
+    }
   }
 
-  Future<void> _connectDevice(BluetoothInfo info) async {
+  Future<void> _connectDevice(String identifier, {String? name}) async {
     setState(() => _loadingPrinter = true);
-    final result = await PrinterService.instance.connect(info.macAdress);
+    final result = await PrinterService.instance.connect(identifier);
     if (mounted) {
       setState(() {
         _loadingPrinter = false;
         if (result.success) {
-          _savedMac = info.macAdress;
-          _savedName = info.name;
+          if (_isMobile) {
+            _savedMac = identifier;
+            _savedName = name;
+            _pairedDevices = [];
+          } else if (_isWindows) {
+            _savedPort = identifier;
+            _comPorts = [];
+          }
           _printerConnected = true;
-          _pairedDevices = [];
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -91,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showUnsupportedSnack() {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('L\'impression Bluetooth est disponible uniquement sur Android/iOS.'),
+      content: Text('Impression non disponible sur cette plateforme.'),
       backgroundColor: Colors.orange,
     ));
   }
@@ -183,9 +199,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _savedMac != null
-                                    ? (_savedName ?? _savedMac!)
-                                    : 'Aucune imprimante configurée',
+                                _isWindows
+                                    ? (_savedPort != null ? 'Port COM : $_savedPort' : 'Aucun port configuré')
+                                    : (_savedMac != null ? (_savedName ?? _savedMac!) : 'Aucune imprimante configurée'),
                                 style: const TextStyle(fontWeight: FontWeight.w600),
                               ),
                               Text(
@@ -198,14 +214,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ],
                           ),
                         ),
-                        if (_savedMac != null)
+                        if (_savedMac != null || _savedPort != null)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
                             tooltip: 'Supprimer la configuration',
                             onPressed: () async {
                               await PrinterService.instance.disconnect();
                               await PrinterService.instance.clearMac();
-                              if (mounted) setState(() { _savedMac = null; _printerConnected = false; });
+                              await PrinterService.instance.clearPort();
+                              if (mounted) setState(() { _savedMac = null; _savedPort = null; _printerConnected = false; });
                             },
                           ),
                       ],
@@ -217,14 +234,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: _loadingDevices ? null : _searchDevices,
                         icon: _loadingDevices
                             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.bluetooth_searching),
-                        label: const Text('Rechercher les imprimantes appairées'),
+                            : const Icon(Icons.search),
+                        label: Text(_isWindows ? 'Rechercher les ports COM' : 'Rechercher les imprimantes appairées'),
                       ),
                     ),
-                    if (!_isMobile) ...[
+                    if (!_isMobile && !_isWindows) ...[
                       const SizedBox(height: 8),
                       const Text(
-                        '⚠ L\'impression Bluetooth est disponible uniquement sur Android/iOS.',
+                        '⚠ L\'impression n\'est disponible que sur Windows/Android/iOS.',
                         style: TextStyle(fontSize: 12, color: Colors.orange),
                       ),
                     ],
@@ -234,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             // Paired device list
-            if (_pairedDevices.isNotEmpty) ...[
+            if (_pairedDevices.isNotEmpty && _isMobile) ...[
               const SizedBox(height: 8),
               Card(
                 child: Column(
@@ -246,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: _loadingPrinter
                           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                           : ElevatedButton(
-                              onPressed: () => _connectDevice(device),
+                              onPressed: () => _connectDevice(device.macAdress, name: device.name),
                               child: const Text('Connecter'),
                             ),
                     );
@@ -255,11 +272,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
 
-            if (_pairedDevices.isEmpty && !_loadingDevices && _isMobile) ...[
+            // COM port list
+            if (_comPorts.isNotEmpty && _isWindows) ...[
               const SizedBox(height: 8),
-              const Text(
-                'Aucun appareil trouvé. Assurez-vous que votre imprimante est allumée et appairée dans les paramètres Bluetooth de votre téléphone.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              Card(
+                child: Column(
+                  children: _comPorts.map((port) {
+                    return ListTile(
+                      leading: const Icon(Icons.usb, color: Colors.blue),
+                      title: Text(port),
+                      trailing: _loadingPrinter
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                          : ElevatedButton(
+                              onPressed: () => _connectDevice(port),
+                              child: const Text('Connecter'),
+                            ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+
+            if (_pairedDevices.isEmpty && _comPorts.isEmpty && !_loadingDevices && (_isMobile || _isWindows)) ...[
+              const SizedBox(height: 8),
+              Text(
+                _isWindows
+                    ? 'Aucun port COM disponible.'
+                    : 'Aucun appareil trouvé. Assurez-vous que votre imprimante est allumée et appairée.',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
             const SizedBox(height: 24),

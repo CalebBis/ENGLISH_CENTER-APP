@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../teachers/teacher_list_screen.dart';
@@ -65,10 +66,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     _buildStatCard('Étudiants Actifs', '${provider.totalStudents}', Colors.blue, Icons.people),
                     _buildStatCard('Nouveaux', '${provider.newStudentsThisMonth}', Colors.green, Icons.person_add),
-                    _buildStatCard('Présence', '${provider.attendanceRate.toInt()}%', Colors.orange, Icons.check_circle),
+                    _buildStatCard(
+                      'Présence',
+                      (provider.attendanceRate == 0.0 && !provider.hasAttendanceData) ? '—' : '${provider.attendanceRate.toInt()}%',
+                      Colors.orange,
+                      Icons.check_circle,
+                    ),
                     _buildStatCard('Impayés', '${provider.unpaidCount}', Colors.red, Icons.warning),
                   ],
                 ),
+                const SizedBox(height: 32),
+                const Text('Évolution des revenus (6 derniers mois)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                _buildRevenueChart(provider),
               ],
             ),
           );
@@ -95,6 +105,131 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 4),
               Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRevenueChart(DashboardProvider provider) {
+    if (provider.isLoading) {
+      return const Card(
+        child: SizedBox(
+          height: 250,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (provider.revenueHistory.every((e) => e.amount == 0)) {
+      return const Card(
+        child: SizedBox(
+          height: 250,
+          child: Center(
+            child: Text(
+              'Aucune donnée de revenus pour le moment',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final maxY = provider.maxRevenueValue * 1.2;
+    
+    // Map full month numbers to short French labels
+    String _getShortMonth(String periodMonth) {
+      final parts = periodMonth.split('-');
+      if (parts.length != 2) return '';
+      final m = int.tryParse(parts[1]) ?? 1;
+      const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      return months[m - 1];
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SizedBox(
+          height: 250,
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: maxY,
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (group) => Colors.blueGrey,
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    return BarTooltipItem(
+                      '\$${rod.toY.toStringAsFixed(2)}',
+                      const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    );
+                  },
+                ),
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (double value, TitleMeta meta) {
+                      final index = value.toInt();
+                      if (index < 0 || index >= provider.revenueHistory.length) return const SizedBox.shrink();
+                      final item = provider.revenueHistory[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          _getShortMonth(item.periodMonth),
+                          style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    getTitlesWidget: (double value, TitleMeta meta) {
+                      if (value == maxY) return const SizedBox.shrink();
+                      return Text(
+                        value.toInt().toString(),
+                        style: const TextStyle(color: Colors.grey, fontSize: 10),
+                      );
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: maxY > 0 ? maxY / 4 : 10,
+                getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              barGroups: provider.revenueHistory.asMap().entries.map((entry) {
+                final index = entry.key;
+                final data = entry.value;
+                return BarChartGroupData(
+                  x: index,
+                  barRods: [
+                    BarChartRodData(
+                      toY: data.amount,
+                      color: Colors.blue,
+                      width: 16,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ),
       ),

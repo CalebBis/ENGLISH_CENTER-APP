@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart'
     if (dart.library.html) 'package:english_center_app/services/printer_stub.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter_libserialport/flutter_libserialport.dart';
 
 import '../models/payment.dart';
 import '../models/student.dart';
@@ -35,6 +36,11 @@ class PrinterService {
 
   // True only on mobile platforms.
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  
+  // True on Windows.
+  bool get _isWindows => !kIsWeb && Platform.isWindows;
+
+  SerialPort? _serialPort;
 
   // ─── Persistence ────────────────────────────────────────────────────────
 
@@ -53,6 +59,21 @@ class PrinterService {
     await prefs.remove('selected_printer_mac');
   }
 
+  Future<String?> getSavedPort() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('selected_printer_port');
+  }
+
+  Future<void> savePort(String portName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_printer_port', portName);
+  }
+
+  Future<void> clearPort() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selected_printer_port');
+  }
+
   // ─── Device discovery ───────────────────────────────────────────────────
 
   /// Returns a list of paired Bluetooth devices.
@@ -67,38 +88,131 @@ class PrinterService {
     }
   }
 
+  /// Returns a list of available COM ports for Windows.
+  List<String> listAvailablePorts() {
+    if (!_isWindows) return [];
+    try {
+      return SerialPort.availablePorts;
+    } catch (e) {
+      debugPrint('PrinterService.listAvailablePorts: $e');
+      return [];
+    }
+  }
+
   // ─── Connection ─────────────────────────────────────────────────────────
 
-  Future<PrintResult> connect(String macAddress) async {
-    if (!_isMobile) {
-      return PrintResult.error('Impression Bluetooth non disponible sur cette plateforme.');
-    }
-    try {
-      final connected = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
-      if (connected) {
-        await saveMac(macAddress);
-        return PrintResult.ok();
+  Future<PrintResult> connect(String identifier) async {
+    if (_isMobile) {
+      try {
+        final connected = await PrintBluetoothThermal.connect(macPrinterAddress: identifier);
+        if (connected) {
+          await saveMac(identifier);
+          return PrintResult.ok();
+        }
+        return PrintResult.error('Connexion échouée. Vérifiez que l\'imprimante est allumée et appairée.');
+      } catch (e) {
+        return PrintResult.error('Erreur de connexion : $e');
       }
-      return PrintResult.error('Connexion échouée. Vérifiez que l\'imprimante est allumée et appairée.');
-    } catch (e) {
-      return PrintResult.error('Erreur de connexion : $e');
+    } else if (_isWindows) {
+      try {
+        if (_serialPort != null && _serialPort!.isOpen) {
+          _serialPort!.close();
+        }
+        _serialPort = SerialPort(identifier);
+        if (_serialPort!.openReadWrite()) {
+          // Standard configuration for POS thermal printers (9600 baud)
+          final config = SerialPortConfig()
+            ..baudRate = 9600
+            ..bits = 8
+            ..parity = SerialPortParity.none
+            ..stopBits = 1
+            ..setFlowControl(SerialPortFlowControl.none);
+          _serialPort!.config = config;
+          
+          await savePort(identifier);
+          return PrintResult.ok();
+        } else {
+          return PrintResult.error('Impossible d\'ouvrir le port $identifier.');
+        }
+      } catch (e) {
+        return PrintResult.error('Erreur de connexion au port COM : $e');
+      }
     }
+    return PrintResult.error('Impression non disponible sur cette plateforme.');
   }
 
   Future<void> disconnect() async {
-    if (!_isMobile) return;
-    try {
-      await PrintBluetoothThermal.disconnect;
-    } catch (_) {}
+    if (_isMobile) {
+      try {
+        await PrintBluetoothThermal.disconnect;
+      } catch (_) {}
+    } else if (_isWindows) {
+      try {
+        if (_serialPort != null && _serialPort!.isOpen) {
+          _serialPort!.close();
+        }
+      } catch (_) {}
+    }
   }
 
   Future<bool> isConnected() async {
-    if (!_isMobile) return false;
-    try {
-      return await PrintBluetoothThermal.connectionStatus;
-    } catch (_) {
-      return false;
+    if (_isMobile) {
+      try {
+        return await PrintBluetoothThermal.connectionStatus;
+      } catch (_) {
+        return false;
+      }
+    } else if (_isWindows) {
+      return _serialPort != null && _serialPort!.isOpen;
     }
+    return false;
+  }
+
+  // ─── Common write method ────────────────────────────────────────────────
+
+  Future<PrintResult> _writeBytes(List<int> bytes) async {
+    if (_isMobile) {
+      final result = await PrintBluetoothThermal.writeBytes(bytes);
+      return result ? PrintResult.ok() : PrintResult.error('L\'imprimante n\'a pas pu traiter les données.');
+    } else if (_isWindows) {
+      if (_serialPort != null && _serialPort!.isOpen) {
+        try {
+          final written = _serialPort!.write(Uint8List.fromList(bytes));
+          if (written == bytes.length) {
+            return PrintResult.ok();
+          }
+          return PrintResult.error('Écriture incomplète sur le port série.');
+        } catch (e) {
+          return PrintResult.error('Erreur d\'écriture sur le port série : $e');
+        }
+      }
+      return PrintResult.error('Le port série n\'est pas ouvert.');
+    }
+    return PrintResult.error('Plateforme non supportée.');
+  }
+
+  // ─── Formatting Helpers (32 chars for 58mm paper) ───────────────────────
+
+  List<String> _wrapLine(String text, {int maxWidth = 32}) {
+    List<String> lines = [];
+    int start = 0;
+    while (start < text.length) {
+      int end = start + maxWidth;
+      if (end > text.length) end = text.length;
+      lines.add(text.substring(start, end));
+      start = end;
+    }
+    return lines;
+  }
+
+  String _alignColumns(String left, String right, {int maxWidth = 32}) {
+    if (left.length + right.length > maxWidth - 1) {
+      int leftSpace = maxWidth - right.length - 1;
+      if (leftSpace < 0) return left.substring(0, maxWidth);
+      left = left.substring(0, leftSpace);
+    }
+    int spacesCount = maxWidth - left.length - right.length;
+    return left + (' ' * spacesCount) + right;
   }
 
   // ─── Receipt printing ───────────────────────────────────────────────────
@@ -109,22 +223,22 @@ class PrinterService {
     required Student student,
     required Payment payment,
   }) async {
-    if (!_isMobile) {
-      return PrintResult.error('Impression Bluetooth non disponible sur Windows. '
-          'Cette fonctionnalité est réservée à l\'application Android.');
+    if (!_isMobile && !_isWindows) {
+      return PrintResult.error('Impression non disponible sur cette plateforme.');
     }
 
     final connected = await isConnected();
     if (!connected) {
-      // Try to reconnect with saved MAC
-      final mac = await getSavedMac();
-      if (mac == null) {
-        return PrintResult.error('Aucune imprimante configurée. '
-            'Allez dans Paramètres > Imprimante pour en choisir une.');
-      }
-      final result = await connect(mac);
-      if (!result.success) {
-        return PrintResult.error('Imprimante non connectée. ${result.message}');
+      if (_isMobile) {
+        final mac = await getSavedMac();
+        if (mac == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(mac);
+        if (!result.success) return result;
+      } else if (_isWindows) {
+        final port = await getSavedPort();
+        if (port == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(port);
+        if (!result.success) return result;
       }
     }
 
@@ -152,12 +266,15 @@ class PrinterService {
       bytes += generator.text(separator);
 
       // ── Body ─────────────────────────────────────────────────────────────
-      bytes += generator.text('Étudiant : ${student.fullName}');
+      for (var line in _wrapLine('Étudiant : ${student.fullName}')) {
+        bytes += generator.text(line);
+      }
+      for (var line in _wrapLine('Période  : ${PaymentProvider.periodLabel(payment.periodMonth)}')) {
+        bytes += generator.text(line);
+      }
+      
       bytes += generator.text(
-        'Période  : ${PaymentProvider.periodLabel(payment.periodMonth)}',
-      );
-      bytes += generator.text(
-        'Montant  : ${payment.amount.toStringAsFixed(2)} \$',
+        _alignColumns('Montant', '${payment.amount.toStringAsFixed(2)} \$'),
         styles: const PosStyles(bold: true),
       );
 
@@ -166,10 +283,14 @@ class PrinterService {
       final dateStr =
           '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} '
           '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-      bytes += generator.text('Date     : $dateStr');
+      for (var line in _wrapLine('Date     : $dateStr')) {
+        bytes += generator.text(line);
+      }
 
       if (payment.paymentMethod != null && payment.paymentMethod!.isNotEmpty) {
-        bytes += generator.text('Méthode  : ${payment.paymentMethod}');
+        for (var line in _wrapLine('Méthode  : ${payment.paymentMethod}')) {
+          bytes += generator.text(line);
+        }
       }
 
       // ── Footer ───────────────────────────────────────────────────────────
@@ -184,10 +305,7 @@ class PrinterService {
       bytes += generator.feed(2);
       bytes += generator.cut();
 
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
-      return result
-          ? PrintResult.ok()
-          : PrintResult.error('L\'imprimante n\'a pas pu traiter les données.');
+      return await _writeBytes(bytes);
     } catch (e) {
       return PrintResult.error('Erreur lors de l\'impression : $e');
     }
@@ -203,16 +321,23 @@ class PrinterService {
     required double totalUnpaidAmount,
     required PaymentProvider provider,
   }) async {
-    if (!_isMobile) {
-      return PrintResult.error('Impression Bluetooth non disponible sur Windows.');
+    if (!_isMobile && !_isWindows) {
+      return PrintResult.error('Impression non disponible sur cette plateforme.');
     }
 
     final connected = await isConnected();
     if (!connected) {
-      final mac = await getSavedMac();
-      if (mac == null) return PrintResult.error('Aucune imprimante configurée.');
-      final result = await connect(mac);
-      if (!result.success) return PrintResult.error('Imprimante non connectée.');
+      if (_isMobile) {
+        final mac = await getSavedMac();
+        if (mac == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(mac);
+        if (!result.success) return result;
+      } else if (_isWindows) {
+        final port = await getSavedPort();
+        if (port == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(port);
+        if (!result.success) return result;
+      }
     }
 
     try {
@@ -244,8 +369,7 @@ class PrinterService {
       bytes += generator.feed(2);
       bytes += generator.cut();
 
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
-      return result ? PrintResult.ok() : PrintResult.error('Erreur d\'impression.');
+      return await _writeBytes(bytes);
     } catch (e) {
       return PrintResult.error('Erreur lors de l\'impression : $e');
     }
@@ -259,16 +383,23 @@ class PrinterService {
     required double totalAmount,
     required String invoiceNumber,
   }) async {
-    if (!_isMobile) {
-      return PrintResult.error('Impression Bluetooth non disponible sur Windows.');
+    if (!_isMobile && !_isWindows) {
+      return PrintResult.error('Impression non disponible sur cette plateforme.');
     }
 
     final connected = await isConnected();
     if (!connected) {
-      final mac = await getSavedMac();
-      if (mac == null) return PrintResult.error('Aucune imprimante configurée.');
-      final result = await connect(mac);
-      if (!result.success) return PrintResult.error('Imprimante non connectée.');
+      if (_isMobile) {
+        final mac = await getSavedMac();
+        if (mac == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(mac);
+        if (!result.success) return result;
+      } else if (_isWindows) {
+        final port = await getSavedPort();
+        if (port == null) return PrintResult.error('Aucune imprimante configurée.');
+        final result = await connect(port);
+        if (!result.success) return result;
+      }
     }
 
     try {
@@ -286,26 +417,28 @@ class PrinterService {
       bytes += generator.text('Date : $dateStr', styles: const PosStyles(align: PosAlign.center));
       bytes += generator.text(separator);
 
-      bytes += generator.text('Etudiant : ${student.fullName}');
+      for (var line in _wrapLine('Etudiant : ${student.fullName}')) {
+        bytes += generator.text(line);
+      }
       bytes += generator.text(separator);
 
       for (var fee in paidFees) {
         final label = fee['label'] as String;
         final amount = fee['amount'] as double;
-        final lblStr = label.length > 20 ? label.substring(0, 20) : label.padRight(20);
-        final amtStr = '${amount.toStringAsFixed(0)} \$'.padLeft(9);
-        bytes += generator.text('$lblStr $amtStr');
+        bytes += generator.text(_alignColumns(label, '${amount.toStringAsFixed(0)} \$'));
       }
 
       bytes += generator.text(separator);
-      bytes += generator.text('Total : ${totalAmount.toStringAsFixed(2)} \$', styles: const PosStyles(bold: true));
+      bytes += generator.text(
+        _alignColumns('Total', '${totalAmount.toStringAsFixed(2)} \$'), 
+        styles: const PosStyles(bold: true)
+      );
       bytes += generator.text(separator);
       bytes += generator.text('Merci !', styles: const PosStyles(bold: true, align: PosAlign.center));
       bytes += generator.feed(2);
       bytes += generator.cut();
 
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
-      return result ? PrintResult.ok() : PrintResult.error('Erreur d\'impression.');
+      return await _writeBytes(bytes);
     } catch (e) {
       return PrintResult.error('Erreur lors de l\'impression : $e');
     }

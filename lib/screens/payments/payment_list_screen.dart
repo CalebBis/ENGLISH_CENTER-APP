@@ -49,9 +49,13 @@ class _PaymentListScreenState extends State<PaymentListScreen> {
       list = list.where((p) => _studentFullName(p).toLowerCase().contains(q)).toList();
     }
     
-    // promotion filter
+    // promotion filter (based on actual classId from _studentClassMap)
     if (provider.promotionFilter != 'all') {
-      list = list.where((p) => p['currentLevel'] == provider.promotionFilter).toList();
+      list = list.where((p) {
+        final studentId = p['studentId'] as String;
+        final classId = provider.studentClassMap[studentId];
+        return classId == provider.promotionFilter;
+      }).toList();
     }
     
     // status filter
@@ -214,7 +218,7 @@ class _PaymentListScreenState extends State<PaymentListScreen> {
                       value: provider.promotionFilter,
                       items: [
                         const DropdownMenuItem(value: 'all', child: Text('Toutes les promotions')),
-                        ...AppConstants.englishLevels.map((l) => DropdownMenuItem(value: l, child: Text(l))),
+                        ...provider.availableClasses.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
                       ],
                       onChanged: (val) {
                         if (val != null) provider.setPromotionFilter(val);

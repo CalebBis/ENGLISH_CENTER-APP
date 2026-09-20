@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../models/teacher.dart';
 import '../../providers/teacher_provider.dart';
+import '../../widgets/custom_widgets.dart';
 import 'teacher_form_screen.dart';
+import 'teacher_detail_screen.dart';
 
 class TeacherListScreen extends StatefulWidget {
   const TeacherListScreen({Key? key}) : super(key: key);
@@ -40,6 +42,18 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => TeacherFormScreen(teacher: teacher),
+      ),
+    );
+    if (mounted) {
+      context.read<TeacherProvider>().loadTeachers();
+    }
+  }
+
+  void _openDetail(Teacher teacher) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TeacherDetailScreen(teacher: teacher),
       ),
     );
     if (mounted) {
@@ -104,30 +118,28 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    elevation: 2,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columnSpacing: 24,
-                        headingRowColor: WidgetStateProperty.all(
-                          AppTheme.primaryColor.withValues(alpha: 0.08),
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: teachers.length,
+                  itemBuilder: (context, index) {
+                    final teacher = teachers[index];
+                    return CustomCard(
+                      child: ListTile(
+                        leading: _buildAvatar(teacher),
+                        title: Text(
+                          teacher.fullName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        columns: const [
-                          DataColumn(label: Text('Photo', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Nom complet', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Téléphone', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Lieu de naissance', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                        ],
-                        rows: teachers.map((t) => _buildRow(t)).toList(),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => _openDetail(teacher),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),
@@ -142,49 +154,15 @@ class _TeacherListScreenState extends State<TeacherListScreen> {
     );
   }
 
-  DataRow _buildRow(Teacher teacher) {
-    return DataRow(
-      onSelectChanged: (_) => _openForm(teacher: teacher),
-      cells: [
-        DataCell(_buildAvatar(teacher)),
-        DataCell(Text(teacher.fullName)),
-        DataCell(Text(teacher.phone)),
-        DataCell(Text(teacher.placeOfBirth ?? '-')),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit, size: 20),
-                color: AppTheme.accentColor,
-                tooltip: 'Modifier',
-                onPressed: () => _openForm(teacher: teacher),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, size: 20),
-                color: Colors.red,
-                tooltip: 'Supprimer',
-                onPressed: () => _confirmDelete(teacher),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildAvatar(Teacher teacher) {
     if (teacher.photoUrl != null && teacher.photoUrl!.isNotEmpty) {
       final file = File(teacher.photoUrl!);
       if (file.existsSync()) {
-        return CircleAvatar(
-          radius: 20,
-          backgroundImage: FileImage(file),
-        );
+        return CircleAvatar(radius: 22, backgroundImage: FileImage(file));
       }
     }
     return CircleAvatar(
-      radius: 20,
+      radius: 22,
       backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
       child: Text(
         teacher.lastName.isNotEmpty ? teacher.lastName[0].toUpperCase() : '?',

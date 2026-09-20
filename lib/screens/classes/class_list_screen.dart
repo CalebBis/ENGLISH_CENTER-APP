@@ -78,13 +78,22 @@ class _ClassListScreenState extends State<ClassListScreen> {
                         ),
                         title: Text(
                           englishClass.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 4),
-                            Text('👨‍🏫 ${englishClass.teacher?.fullName ?? 'Aucun enseignant'}'),
+                            Text(
+                              '👨‍🏫 ${englishClass.teacher?.fullName ?? 'Aucun enseignant'}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Text('👥 $capacityText', 
                                 style: TextStyle(
@@ -94,32 +103,16 @@ class _ClassListScreenState extends State<ClassListScreen> {
                           ],
                         ),
                         isThreeLine: true,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ClassFormScreen(englishClass: englishClass),
-                                  ),
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ClassDetailsScreen(englishClass: englishClass),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                        trailing: IconButton(
+                          icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ClassDetailsScreen(englishClass: englishClass),
+                              ),
+                            );
+                          },
                         ),
                         onTap: () {
                           Navigator.push(

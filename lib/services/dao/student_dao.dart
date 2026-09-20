@@ -134,12 +134,30 @@ class StudentDao {
         whereArgs: [studentId],
       );
       
-      // Finally delete the student
       await txn.delete(
         'students',
         where: 'id = ?',
         whereArgs: [studentId],
       );
     });
+  }
+
+  Future<int> getActiveStudentCount() async {
+    final db = await DatabaseHelper.instance.database;
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM students WHERE isActive = 1')
+    );
+    return count ?? 0;
+  }
+
+  Future<int> getNewStudentsCountForMonth(String periodMonth) async {
+    final db = await DatabaseHelper.instance.database;
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery(
+        "SELECT COUNT(*) FROM students WHERE strftime('%Y-%m', enrollmentDate) = ? AND isActive = 1",
+        [periodMonth]
+      )
+    );
+    return count ?? 0;
   }
 }

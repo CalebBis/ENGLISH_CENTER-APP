@@ -5,6 +5,7 @@ import '../../models/student.dart';
 import '../../providers/class_provider.dart';
 import '../../services/dao/class_dao.dart';
 import '../../widgets/custom_widgets.dart';
+import '../students/student_details_screen.dart';
 
 class ClassDetailsScreen extends StatefulWidget {
   final EnglishClass englishClass;
@@ -19,6 +20,7 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
   final ClassDao _classDao = ClassDao();
   List<Student> _enrolledStudents = [];
   bool _isLoading = false;
+  String _enrolledSearchQuery = '';
 
   @override
   void initState() {
@@ -367,26 +369,103 @@ class _ClassDetailsScreenState extends State<ClassDetailsScreen> {
                         ),
                       ),
                     )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _enrolledStudents.length,
-                      itemBuilder: (context, index) {
-                        final student = _enrolledStudents[index];
-                        return CustomCard(
-                          child: ListTile(
-                            leading: const CircleAvatar(child: Icon(Icons.person)),
-                            title: Text(student.fullName),
-                            subtitle: Text(student.currentLevel),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                              onPressed: () => _unenrollStudent(student.id, student.fullName),
-                            ),
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher un étudiant inscrit...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        );
-                      },
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _enrolledSearchQuery = val;
+                          });
+                        },
+                      ),
                     ),
+                    Builder(
+                      builder: (context) {
+                        final filteredList = _enrolledStudents.where((s) {
+                          return s.fullName.toLowerCase().contains(_enrolledSearchQuery.toLowerCase());
+                        }).toList();
+
+                        if (filteredList.isEmpty) {
+                          return const CustomCard(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Center(
+                                child: Text(
+                                  'Aucun étudiant trouvé',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final student = filteredList[index];
+                            return CustomCard(
+                              child: ListTile(
+                                leading: const CircleAvatar(child: Icon(Icons.person)),
+                                title: Text(student.fullName),
+                                subtitle: Text(student.currentLevel),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'details') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => StudentDetailsScreen(student: student),
+                                        ),
+                                      ).then((_) {
+                                        // Refresh the students list when returning from details, in case student was deleted or changed class
+                                        _loadStudents();
+                                      });
+                                    } else if (value == 'remove') {
+                                      _unenrollStudent(student.id, student.fullName);
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                    const PopupMenuItem<String>(
+                                      value: 'details',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.visibility, color: Colors.blue, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Voir les détails'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem<String>(
+                                      value: 'remove',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.person_remove, color: Colors.red, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Retirer de la classe', style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                    ),
+                  ],
                 ],
               ),
             ),
